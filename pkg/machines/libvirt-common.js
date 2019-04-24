@@ -2,7 +2,7 @@ import cockpit from 'cockpit';
 import * as service from '../lib/service.js';
 import createVmScript from 'raw-loader!./scripts/create_machine.sh';
 import installVmScript from 'raw-loader!./scripts/install_machine.sh';
-import getOSListScript from 'raw-loader!./scripts/get_os_list.sh';
+import getOSListScript from 'raw-loader!./scripts/getOSList.py';
 import getLibvirtServiceNameScript from 'raw-loader!./scripts/get_libvirt_service_name.sh';
 
 import {
@@ -760,7 +760,7 @@ export function parseNodeDeviceDumpxml(nodeDevice) {
 }
 
 export function parseOsInfoList(dispatch, osList) {
-    const osColumnsNames = ['shortId', 'name', 'version', 'family', 'vendor', 'releaseDate', 'eolDate', 'codename'];
+    const osColumnsNames = ['id', 'shortId', 'name', 'version', 'family', 'vendor', 'releaseDate', 'eolDate', 'codename'];
     let parsedList = [];
 
     osList.split('\n').forEach(line => {
