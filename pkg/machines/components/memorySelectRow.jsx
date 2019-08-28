@@ -25,10 +25,11 @@ import { digitFilter, toFixedPrecision, units } from "../helpers.js";
 
 const _ = cockpit.gettext;
 
-const MemorySelectRow = ({ id, value, maxValue, initialUnit, onValueChange, onUnitChange }) => {
+const MemorySelectRow = ({ id, value, maxValue, initialUnit, onValueChange, disabled, onUnitChange }) => {
     return (
         <div role="group">
             <input id={id} className="form-control"
+                   disabled={disabled}
                    type="number"
                    value={toFixedPrecision(value)}
                    onKeyPress={digitFilter}
@@ -37,6 +38,7 @@ const MemorySelectRow = ({ id, value, maxValue, initialUnit, onValueChange, onUn
                    max={maxValue}
                    onChange={onValueChange} />
             <Select.Select id={id + "-unit-select"}
+                           enabled={!disabled}
                            initial={initialUnit}
                            onChange={onUnitChange}>
                 <Select.SelectEntry data={units.MiB.name} key={units.MiB.name}>

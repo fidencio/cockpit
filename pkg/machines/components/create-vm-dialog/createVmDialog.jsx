@@ -59,6 +59,7 @@ const _ = cockpit.gettext;
 
 const URL_SOURCE = 'url';
 const LOCAL_INSTALL_MEDIA_SOURCE = 'file';
+const DOWNLOAD_AN_OS = 'os';
 const EXISTING_DISK_IMAGE_SOURCE = 'disk_image';
 const PXE_SOURCE = 'pxe';
 
@@ -146,7 +147,8 @@ function validateParams(vmParams) {
             break;
         }
     } else {
-        validationFailed.source = _("Installation Source should not be empty");
+        if (vmParams.sourceType != DOWNLOAD_AN_OS)
+            validationFailed.source = _("Installation Source should not be empty");
     }
 
     if (vmParams.memorySize === 0) {
@@ -206,7 +208,7 @@ const NameRow = ({ vmName, onValueChanged, validationFailed }) => {
     );
 };
 
-const SourceRow = ({ connectionName, source, sourceType, networks, nodeDevices, providerName, onValueChanged, validationFailed }) => {
+const SourceRow = ({ connectionName, source, sourceType, networks, nodeDevices, providerName, os, osInfoList, onValueChanged, validationFailed }) => {
     let installationSource;
     let installationSourceId;
     let installationSourceWarning;
@@ -259,7 +261,6 @@ const SourceRow = ({ connectionName, source, sourceType, networks, nodeDevices, 
         );
         break;
     case URL_SOURCE:
-    default:
         installationSourceId = "source-url";
         installationSource = (
             <input id={installationSourceId} className="form-control"
@@ -269,6 +270,8 @@ const SourceRow = ({ connectionName, source, sourceType, networks, nodeDevices, 
                 value={source}
                 onChange={e => onValueChanged('source', e.target.value)} />
         );
+        break;
+    default:
         break;
     }
 
@@ -282,6 +285,8 @@ const SourceRow = ({ connectionName, source, sourceType, networks, nodeDevices, 
                 <Select.Select id="source-type"
                     initial={sourceType}
                     onChange={value => onValueChanged('sourceType', value)}>
+                    <Select.SelectEntry data={DOWNLOAD_AN_OS}
+                        key={DOWNLOAD_AN_OS}>{_("Download an OS")}</Select.SelectEntry>
                     <Select.SelectEntry data={LOCAL_INSTALL_MEDIA_SOURCE}
                         key={LOCAL_INSTALL_MEDIA_SOURCE}>{_("Local Install Media")}</Select.SelectEntry>
                     <Select.SelectEntry data={URL_SOURCE} key={URL_SOURCE}>{_("URL")}</Select.SelectEntry>
@@ -294,16 +299,24 @@ const SourceRow = ({ connectionName, source, sourceType, networks, nodeDevices, 
                 </Select.Select>
             </>}
 
-            <label className="control-label" htmlFor={installationSourceId}>
-                {_("Installation Source")}
-            </label>
-            <FormGroup validationState={validationStateSource} controlId='source'>
-                {installationSource}
-                { validationStateSource == 'error' &&
-                <HelpBlock>
-                    <p className="text-danger">{validationFailed.source}</p>
-                </HelpBlock> }
-            </FormGroup>
+            {sourceType != DOWNLOAD_AN_OS
+                ? <>
+                    <label className="control-label" htmlFor={installationSourceId}>
+                        {_("Installation Source")}
+                    </label>
+                    <FormGroup validationState={validationStateSource} controlId='source'>
+                        {installationSource}
+                        { validationStateSource == 'error' &&
+                        <HelpBlock>
+                            <p className="text-danger">{validationFailed.source}</p>
+                        </HelpBlock> }
+                    </FormGroup>
+                </>
+                : <OSRow os={os}
+                         osInfoList={osInfoList.filter(os => os.treeInstallable)}
+                         onValueChanged={onValueChanged}
+                         isLoading={false}
+                         validationFailed={validationFailed} />}
         </>
     );
 };
@@ -374,7 +387,7 @@ class OSRow extends React.Component {
     }
 }
 
-const MemoryRow = ({ memorySize, memorySizeUnit, nodeMaxMemory, recommendedMemory, onValueChanged, validationFailed }) => {
+const MemoryRow = ({ memorySize, memorySizeUnit, nodeMaxMemory, recommendedMemory, expandedMemory, onValueChanged, validationFailed }) => {
     const validationStateMemory = validationFailed.memory ? 'error' : undefined;
     let recommendedMemoryHelpBlock = null;
     if (recommendedMemory && recommendedMemory > memorySize) {
@@ -385,31 +398,42 @@ const MemoryRow = ({ memorySize, memorySizeUnit, nodeMaxMemory, recommendedMemor
 
     return (
         <>
-            <label htmlFor='memory-size' className='control-label'>
-                {_("Memory")}
-            </label>
-            <FormGroup validationState={validationStateMemory} bsClass='form-group ct-validation-wrapper' controlId='memory'>
-                <MemorySelectRow id='memory-size'
-                    value={memorySize}
-                    maxValue={nodeMaxMemory && convertToUnit(nodeMaxMemory, units.KiB, memorySizeUnit)}
-                    initialUnit={memorySizeUnit}
-                    onValueChange={e => onValueChanged('memorySize', e.target.value)}
-                    onUnitChange={value => onValueChanged('memorySizeUnit', value)} />
-                <HelpBlock id="memory-size-helpblock">
-                    {validationStateMemory === "error" && <p>{validationFailed.memory}</p>}
-                    {recommendedMemoryHelpBlock}
-                    {nodeMaxMemory && <p> {cockpit.format(
-                        _("Up to $0 $1 available on the host"),
-                        Math.floor(convertToUnit(nodeMaxMemory, units.KiB, memorySizeUnit)),
-                        memorySizeUnit,
-                    )}</p>}
-                </HelpBlock>
-            </FormGroup>
+            <div className='expand-collapse-pf' id='expand-collapse-button'>
+                <div className='expand-collapse-pf-link-container'>
+                    <button className='btn btn-link' onClick={() => onValueChanged('expandedMemory', !expandedMemory)}>
+                        { expandedMemory ? <span className='fa fa-angle-down' /> : <span className='fa fa-angle-right' /> }
+                        { expandedMemory ? _("Hide Memory Details") : _("Show Memory Details")}
+                    </button>
+                    <span className="expand-collapse-pf-separator bordered" />
+                </div>
+            </div>
+            {expandedMemory && <>
+                <label htmlFor='memory-size' className='control-label'>
+                    {_("Memory")}
+                </label>
+                <FormGroup validationState={validationStateMemory} bsClass='form-group ct-validation-wrapper' controlId='memory'>
+                    <MemorySelectRow id='memory-size'
+                        value={memorySize}
+                        maxValue={nodeMaxMemory && convertToUnit(nodeMaxMemory, units.KiB, memorySizeUnit)}
+                        initialUnit={memorySizeUnit}
+                        onValueChange={e => onValueChanged('memorySize', e.target.value)}
+                        onUnitChange={value => onValueChanged('memorySizeUnit', value)} />
+                    <HelpBlock id="memory-size-helpblock">
+                        {validationStateMemory === "error" && <p>{validationFailed.memory}</p>}
+                        {recommendedMemoryHelpBlock}
+                        {nodeMaxMemory && <p> {cockpit.format(
+                            _("Up to $0 $1 available on the host"),
+                            Math.floor(convertToUnit(nodeMaxMemory, units.KiB, memorySizeUnit)),
+                            memorySizeUnit,
+                        )}</p>}
+                    </HelpBlock>
+                </FormGroup>
+            </>}
         </>
     );
 };
 
-const StorageRow = ({ connectionName, storageSize, storageSizeUnit, onValueChanged, recommendedStorage, storagePoolName, storagePools, storageVolume, vms, validationFailed }) => {
+const StorageRow = ({ connectionName, storageSize, storageSizeUnit, onValueChanged, recommendedStorage, storagePoolName, storagePools, storageVolume, vms, expandedStorage, configureStorage, validationFailed }) => {
     const validationStateStorage = validationFailed.storage ? 'error' : undefined;
     let recommendedStorageHelpBlock = null;
     if (recommendedStorage && recommendedStorage > storageSize) {
@@ -434,24 +458,34 @@ const StorageRow = ({ connectionName, storageSize, storageSizeUnit, onValueChang
 
     return (
         <>
-            <label className="control-label" htmlFor="storage-pool-select">
-                {_("Storage")}
-            </label>
-            <Select.Select id="storage-pool-select"
+            <div className='expand-collapse-pf' id='expand-collapse-button'>
+                <div className='expand-collapse-pf-link-container'>
+                    <button className='btn btn-link' onClick={() => onValueChanged('expandedStorage', !expandedStorage)}>
+                        { expandedStorage ? <span className='fa fa-angle-down' /> : <span className='fa fa-angle-right' /> }
+                        { expandedStorage ? _("Hide Storage Details") : _("Show Storage Details")}
+                    </button>
+                    <span className="expand-collapse-pf-separator bordered" />
+                </div>
+            </div>
+            {expandedStorage && <>
+                <label className="control-label" htmlFor="storage-pool-select">
+                    {_("Storage")}
+                </label>
+                <Select.Select id="storage-pool-select"
                            initial={storagePoolName}
                            onChange={e => onValueChanged('storagePool', e)}>
-                <Select.SelectEntry data="NewVolume" key="NewVolume">{_("Create New Volume")}</Select.SelectEntry>
-                <Select.SelectEntry data="NoStorage" key="NoStorage">{_("No Storage")}</Select.SelectEntry>
-                <Select.SelectDivider />
-                <optgroup key="Storage Pools" label="Storage Pools">
-                    { storagePools.map(pool => {
-                        if (pool.volumes && pool.volumes.length)
-                            return <Select.SelectEntry data={pool.name} key={pool.name}>{pool.name}</Select.SelectEntry>;
-                    })}
-                </optgroup>
-            </Select.Select>
+                    <Select.SelectEntry data="NewVolume" key="NewVolume">{_("Create New Volume")}</Select.SelectEntry>
+                    <Select.SelectEntry data="NoStorage" key="NoStorage">{_("No Storage")}</Select.SelectEntry>
+                    <Select.SelectDivider />
+                    <optgroup key="Storage Pools" label="Storage Pools">
+                        { storagePools.map(pool => {
+                            if (pool.volumes && pool.volumes.length)
+                                return <Select.SelectEntry data={pool.name} key={pool.name}>{pool.name}</Select.SelectEntry>;
+                        })}
+                    </optgroup>
+                </Select.Select>
 
-            { storagePoolName !== "NewVolume" &&
+                { storagePoolName !== "NewVolume" &&
             storagePoolName !== "NoStorage" &&
             <>
                 <label className="control-label" htmlFor="storage-volume-select">
@@ -469,30 +503,31 @@ const StorageRow = ({ connectionName, storageSize, storageSizeUnit, onValueChang
                 </HelpBlock> }
             </> }
 
-            { storagePoolName === "NewVolume" &&
-            <>
-                <label htmlFor='storage-size' className='control-label'>
-                    {_("Size")}
-                </label>
-                <FormGroup validationState={validationStateStorage} bsClass='form-group ct-validation-wrapper' controlId='storage'>
-                    <MemorySelectRow id="storage-size"
+                { storagePoolName === "NewVolume" &&
+                <>
+                    <label htmlFor='storage-size' className='control-label'>
+                        {_("Size")}
+                    </label>
+                    <FormGroup validationState={validationStateStorage} bsClass='form-group ct-validation-wrapper' controlId='storage'>
+                        <MemorySelectRow id="storage-size"
                         value={storageSize}
                         maxValue={poolSpaceAvailable && convertToUnit(poolSpaceAvailable, units.B, storageSizeUnit)}
                         initialUnit={storageSizeUnit}
                         onValueChange={e => onValueChanged('storageSize', e.target.value)}
                         onUnitChange={value => onValueChanged('storageSizeUnit', value)} />
-                    {poolSpaceAvailable &&
-                    <HelpBlock id="storage-size-helpblock">
-                        {validationStateStorage === "error" && <p>{validationFailed.storage}</p>}
-                        {recommendedStorageHelpBlock}
-                        {cockpit.format(
-                            _("Up to $0 $1 available in the default location"),
-                            Math.floor(convertToUnit(poolSpaceAvailable, units.B, storageSizeUnit)),
-                            storageSizeUnit,
-                        )}
-                    </HelpBlock>}
-                </FormGroup>
-            </> }
+                        {poolSpaceAvailable &&
+                        <HelpBlock id="storage-size-helpblock">
+                            {validationStateStorage === "error" && <p>{validationFailed.storage}</p>}
+                            {recommendedStorageHelpBlock}
+                            {cockpit.format(
+                                _("Up to $0 $1 available in the default location"),
+                                Math.floor(convertToUnit(poolSpaceAvailable, units.B, storageSizeUnit)),
+                                storageSizeUnit,
+                            )}
+                        </HelpBlock>}
+                    </FormGroup>
+                </> }
+            </>}
         </>
     );
 };
@@ -505,13 +540,16 @@ class CreateVmModal extends React.Component {
             validate: false,
             vmName: '',
             connectionName: LIBVIRT_SYSTEM_CONNECTION,
-            sourceType: props.mode == 'create' ? LOCAL_INSTALL_MEDIA_SOURCE : EXISTING_DISK_IMAGE_SOURCE,
+            sourceType: props.mode == 'create' ? DOWNLOAD_AN_OS : EXISTING_DISK_IMAGE_SOURCE,
+            expandedMemory: false,
+            expandedStorage: false,
             source: '',
             os: undefined,
             memorySize: Math.min(convertToUnit(1024, units.MiB, units.GiB), // tied to Unit
                                  Math.floor(convertToUnit(props.nodeMaxMemory, units.KiB, units.GiB))),
             memorySizeUnit: units.GiB.name,
-            storageSize: 10, // GiB
+            storageSize: Math.min(convertToUnit(1024, units.MiB, units.GiB), // tied to Unit
+                                  Math.floor(convertToUnit(props.nodeMaxMemory, units.KiB, units.GiB))),
             storageSizeUnit: units.GiB.name,
             storagePool: 'NewVolume',
             storageVolume: '',
@@ -529,7 +567,7 @@ class CreateVmModal extends React.Component {
             this.setState({ [key]: value });
 
             if ((this.state.sourceType == URL_SOURCE || this.state.sourceType == LOCAL_INSTALL_MEDIA_SOURCE) && value != '' && value != undefined) {
-                // Clears the previously set timer.
+                // Clears the previously set timer
                 clearTimeout(this.typingTimeout);
 
                 const onOsAutodetect = (os) => {
@@ -629,19 +667,20 @@ class CreateVmModal extends React.Component {
             }
             break;
         case 'os': {
-            this.setState(prevState => { // to prevent asynchronous calls
-                const stateDelta = { [key]: value };
-                if (value && value.recommendedResources.ram)
-                    stateDelta.recommendedMemory = convertToUnit(value.recommendedResources.ram, units.B, prevState.memorySizeUnit);
-                else
-                    stateDelta.recommendedMemory = undefined;
-                if (value && value.recommendedResources.storage)
-                    stateDelta.recommendedStorage = convertToUnit(value.recommendedResources.storage, units.B, prevState.storageSizeUnit);
-                else
-                    stateDelta.recommendedStorage = undefined;
-
-                return stateDelta;
-            });
+            const stateDelta = { [key]: value };
+            if (value && value.recommendedResources.ram) {
+                stateDelta.recommendedMemory = convertToUnit(value.recommendedResources.ram, units.B, this.state.memorySizeUnit);
+                this.onValueChanged('memorySize', stateDelta.recommendedMemory);
+            } else {
+                stateDelta.recommendedMemory = undefined;
+            }
+            if (value && value.recommendedResources.storage) {
+                stateDelta.recommendedStorage = convertToUnit(value.recommendedResources.storage, units.B, this.state.storageSizeUnit);
+                this.onValueChanged('storageSize', stateDelta.recommendedStorage);
+            } else {
+                stateDelta.recommendedStorage = undefined;
+            }
+            this.setState(stateDelta);
             break;
         }
         default:
@@ -653,8 +692,13 @@ class CreateVmModal extends React.Component {
     onCreateClicked() {
         const { dispatch } = this.props;
 
-        if (Object.getOwnPropertyNames(validateParams({ ...this.state, osInfoList: this.props.osInfoList })).length > 0) {
+        const validation = validateParams({ ...this.state, osInfoList: this.props.osInfoList });
+        if (Object.getOwnPropertyNames(validation).length > 0) {
             this.setState({ inProgress: false, validate: true });
+            if (validation.memory)
+                this.setState({ expandedMemory: true });
+            if (validation.storage)
+                this.setState({ expandedStorage: true });
         } else {
             // leave dialog open to show immediate errors from the backend
             // close the dialog after VMS_CONFIG.LeaveCreateVmDialogVisibleAfterSubmit
@@ -715,47 +759,24 @@ class CreateVmModal extends React.Component {
                     providerName={providerName}
                     source={this.state.source}
                     sourceType={this.state.sourceType}
-                    onValueChanged={this.onValueChanged}
-                    validationFailed={validationFailed} />
-
-                <hr />
-
-                { this.state.sourceType != EXISTING_DISK_IMAGE_SOURCE &&
-                <>
-                    <StorageRow
-                        connectionName={this.state.connectionName}
-                        storageSize={this.state.storageSize}
-                        storageSizeUnit={this.state.storageSizeUnit}
-                        onValueChanged={this.onValueChanged}
-                        storagePoolName={this.state.storagePool}
-                        storagePools={storagePools.filter(pool => pool.connectionName === this.state.connectionName)}
-                        storageVolume={this.state.storageVolume}
-                        vms={vms}
-                        recommendedStorage={this.state.recommendedStorage}
-                        validationFailed={validationFailed}
-                    />
-                    <hr />
-                </>}
-
-                <MemoryRow
-                    memorySize={this.state.memorySize}
-                    memorySizeUnit={this.state.memorySizeUnit}
-                    nodeMaxMemory={nodeMaxMemory}
-                    onValueChanged={this.onValueChanged}
-                    validationFailed={validationFailed}
-                    recommendedMemory={this.state.recommendedMemory}
-                />
-
-                <hr />
-
-                <OSRow
                     os={this.state.os}
                     osInfoList={this.props.osInfoList}
                     onValueChanged={this.onValueChanged}
-                    isLoading={this.state.autodetectOSInProgress}
                     validationFailed={validationFailed} />
 
                 <hr />
+
+                {this.state.sourceType != DOWNLOAD_AN_OS &&
+                <>
+                    <OSRow
+                        os={this.state.os}
+                        osInfoList={this.props.osInfoList}
+                        onValueChanged={this.onValueChanged}
+                        isLoading={this.state.autodetectOSInProgress}
+                        validationFailed={validationFailed} />
+
+                    <hr />
+                </>}
 
                 <label className="checkbox-inline">
                     <input id="start-vm" type="checkbox"
@@ -763,6 +784,33 @@ class CreateVmModal extends React.Component {
                         onChange={e => this.onValueChanged('startVm', e.target.checked)} />
                     {_("Immediately Start VM")}
                 </label>
+
+                <hr />
+
+                { this.state.sourceType != EXISTING_DISK_IMAGE_SOURCE &&
+                <StorageRow
+                    connectionName={this.state.connectionName}
+                    storageSize={this.state.storageSize}
+                    storageSizeUnit={this.state.storageSizeUnit}
+                    onValueChanged={this.onValueChanged}
+                    storagePoolName={this.state.storagePool}
+                    storagePools={storagePools.filter(pool => pool.connectionName === this.state.connectionName)}
+                    storageVolume={this.state.storageVolume}
+                    vms={vms}
+                    recommendedStorage={this.state.recommendedStorage}
+                    expandedStorage={this.state.expandedStorage}
+                    validationFailed={validationFailed}
+                />}
+
+                <MemoryRow
+                    memorySize={this.state.memorySize}
+                    memorySizeUnit={this.state.memorySizeUnit}
+                    nodeMaxMemory={nodeMaxMemory}
+                    onValueChanged={this.onValueChanged}
+                    validationFailed={validationFailed}
+                    expandedMemory={this.state.expandedMemory}
+                    recommendedMemory={this.state.recommendedMemory}
+                />
             </form>
         );
 

@@ -49,10 +49,11 @@ for i in range(oses.get_length()):
     for j in range(trees.get_length()):
         tree = trees.get_nth(j)
 
-        if (tree.has_treeinfo() or
-            (tree.get_kernel_path() != None and
-             tree.get_initrd_path() != None)):
-             osObj['treeInstallable'] = True
+        if (tree.get_url() and
+            (tree.has_treeinfo() or
+            (tree.get_kernel_path() and
+            tree.get_initrd_path()))):
+            osObj['treeInstallable'] = True
 
     res.append(osObj)
 
