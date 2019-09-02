@@ -55,6 +55,11 @@ for i in range(oses.get_length()):
               tree.get_initrd_path()))):
              osObj['treeInstallable'] = True
 
+    osObj['unattendedInstallable'] = False
+    installer_scripts = os.get_install_script_list()
+    if installer_scripts.get_length() > 0:
+        osObj['unattendedInstallable'] = True
+
     res.append(osObj)
 
 print(json.dumps(res))
