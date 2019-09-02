@@ -44,6 +44,15 @@ for i in range(oses.get_length()):
         storage = minimumResources.get_nth(0).get_storage()
         if storage != -1:
             osObj['minimumResources']['storage'] = storage
+    osObj['treeInstallable'] = False
+    trees = os.get_tree_list()
+    for j in range(trees.get_length()):
+        tree = trees.get_nth(j)
+
+        if (tree.has_treeinfo() or
+            (tree.get_kernel_path() != None and
+             tree.get_initrd_path() != None)):
+             osObj['treeInstallable'] = True
 
     res.append(osObj)
 
