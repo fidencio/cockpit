@@ -11,13 +11,17 @@ STORAGE_SIZE="$7" # in GiB
 START_VM="$8"
 STORAGE_POOL="$9"
 STORAGE_VOLUME="${10}"
+UNATTENDED="${11}"
+USER_PASSWORD="${12}"
+ROOT_PASSWORD="${13}"
+PROFILE="${14}"
 
 vmExists(){
    virsh -c "$CONNECTION_URI" list --all | awk  '{print $2}' | grep -q --line-regexp --fixed-strings "$1"
 }
 
 err_handler () {
-    rm -f "$XMLS_FILE"
+    rm -f "$ROOT_PASSWORD_FILE $USER_PASSWORD_FILE $XMLS_FILE"
 }
 
 handleFailure(){
@@ -25,6 +29,18 @@ handleFailure(){
 }
 
 trap err_handler EXIT
+
+XMLS_FILE="`mktemp`"
+ROOT_PASSWORD_FILE="`mktemp`"
+USER_PASSWORD_FILE="`mktemp`"
+
+if [ "$UNATTENDED" = "true" ]; then
+    echo "$ROOT_PASSWORD" > "$ROOT_PASSWORD_FILE"
+    echo "$USER_PASSWORD" > "$USER_PASSWORD_FILE"
+    UNATTENDED_PARAMS="--unattended admin-password-file=$ROOT_PASSWORD_FILE,user-password-file=$USER_PASSWORD_FILE,profile=$PROFILE"
+else
+    UNATTENDED_PARAMS=""
+fi
 
 # prepare virt-install parameters
 if [ "$SOURCE_TYPE" = "disk_image" ]; then
@@ -70,9 +86,6 @@ else
     INSTALL_METHOD=""
 fi
 
-
-XMLS_FILE="`mktemp`"
-
 if [ "$START_VM" = "true" ]; then
     STARTUP_PARAMS="--noautoconsole"
     HAS_INSTALL_PHASE="false"
@@ -111,6 +124,7 @@ virt-install \
     $STARTUP_PARAMS \
     $INSTALL_METHOD \
     $GRAPHICS_PARAM \
+    $UNATTENDED_PARAMS \
 > "$XMLS_FILE" || handleFailure $?
 
 # The VM got deleted while being installed

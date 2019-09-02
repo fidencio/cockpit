@@ -19,7 +19,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Button, FormGroup, HelpBlock, Modal, OverlayTrigger, Tooltip, TypeAheadSelect } from 'patternfly-react';
+import { Button, FormGroup, HelpBlock, Modal, OverlayTrigger, Tooltip, TypeAheadSelect, FieldLevelHelp } from 'patternfly-react';
 
 import cockpit from 'cockpit';
 import { MachinesConnectionSelector } from '../machinesConnectionSelector.jsx';
@@ -50,6 +50,7 @@ import {
     getOSStringRepresentation,
 } from "./createVmDialogUtils.js";
 import MemorySelectRow from '../memorySelectRow.jsx';
+import { Password } from './Password.jsx';
 
 import './createVmDialog.less';
 import 'form-layout.less';
@@ -179,6 +180,14 @@ function validateParams(vmParams) {
                     vmParams.storageSizeUnit)
             );
         }
+    }
+
+    if (vmParams.unattendedInstallation && !vmParams.rootPassword) {
+        validationFailed.rootPassword = _("Please insert a valid root password");
+    }
+
+    if (vmParams.unattendedInstallation && !vmParams.userPassword) {
+        validationFailed.userPassword = _("Please insert a valid user password");
     }
 
     return validationFailed;
@@ -387,6 +396,75 @@ class OSRow extends React.Component {
     }
 }
 
+const UnattendedRow = ({ validationFailed, unattendedInstallation, os, onValueChanged }) => {
+    const validationStateRootPassword = validationFailed.rootPassword ? 'error' : undefined;
+    const validationStateUserPassword = validationFailed.userPassword ? 'error' : undefined;
+    let unattendedInstallationCheckbox = (
+        <>
+            <label className="checkbox-inline">
+                <input id="unattended-installation" type="checkbox"
+                    checked={unattendedInstallation}
+                    disabled={!os || !os.unattendedInstallable}
+                    onChange={e => onValueChanged('unattendedInstallation', e.target.checked)} />
+                {_("Run unattended installation")}
+                <FieldLevelHelp content={_("Perform an unattended install using libosinfo's install script support")} close />
+            </label>
+        </>
+    );
+    if (!os || !os.unattendedInstallable) {
+        unattendedInstallationCheckbox = (
+            <OverlayTrigger overlay={ <Tooltip id='os-unattended-installation-tooltip'>{ _("The selected Operating System does not support unattended installations") }</Tooltip> } placement='top'>
+                {unattendedInstallationCheckbox}
+            </OverlayTrigger>
+        );
+    }
+
+    return (
+        <>
+            {unattendedInstallationCheckbox}
+            {unattendedInstallation ? <>
+                <label className="control-label" htmlFor="profile-select">
+                    {_("Profile")}
+                </label>
+                <Select.Select id="profile-select"
+                    initial={os.profiles && os.profiles[0]}
+                    onChange={e => onValueChanged('profile', e)}>
+                    { (os.profiles || []).map(profile => {
+                        let profileName;
+                        if (profile == 'jeos')
+                            profileName = 'Server';
+                        else if (profile == 'desktop')
+                            profileName = 'Workstation';
+                        else
+                            profileName = profile;
+                        return <Select.SelectEntry data={profile} key={profile}>{profileName}</Select.SelectEntry>;
+                    }) }
+                </Select.Select>
+                <label htmlFor='root-password' className='control-label'>
+                    {_("Root Password")}
+                </label>
+                <FormGroup validationState={validationStateRootPassword} bsClass='form-group ct-validation-wrapper' controlId='root-password'>
+                    <Password onValueChanged={(value) => onValueChanged('rootPassword', value)} />
+                    <HelpBlock>
+                        <p className="text-danger">{validationFailed.rootPassword}</p>
+                    </HelpBlock>
+                </FormGroup>
+                <label htmlFor='user-password' className='control-label'>
+                    {_("User Password")}
+                    <FieldLevelHelp content={_("The username is your current host username")} close />
+                </label>
+                <FormGroup validationState={validationStateUserPassword} bsClass='form-group ct-validation-wrapper' controlId='user-password'>
+                    <Password onValueChanged={(value) => onValueChanged('userPassword', value)} />
+                    <HelpBlock>
+                        <p className="text-danger">{validationFailed.userPassword}</p>
+                    </HelpBlock>
+                </FormGroup>
+                <hr />
+            </> : <span />}
+        </>
+    );
+};
+
 const MemoryRow = ({ memorySize, memorySizeUnit, nodeMaxMemory, recommendedMemory, expandedMemory, onValueChanged, validationFailed }) => {
     const validationStateMemory = validationFailed.memory ? 'error' : undefined;
     let recommendedMemoryHelpBlock = null;
@@ -400,7 +478,7 @@ const MemoryRow = ({ memorySize, memorySizeUnit, nodeMaxMemory, recommendedMemor
         <>
             <div className='expand-collapse-pf' id='expand-collapse-button'>
                 <div className='expand-collapse-pf-link-container'>
-                    <button className='btn btn-link' onClick={() => onValueChanged('expandedMemory', !expandedMemory)}>
+                    <button className='btn btn-link' type="button" onClick={() => onValueChanged('expandedMemory', !expandedMemory)}>
                         { expandedMemory ? <span className='fa fa-angle-down' /> : <span className='fa fa-angle-right' /> }
                         { expandedMemory ? _("Hide Memory Details") : _("Show Memory Details")}
                     </button>
@@ -460,7 +538,7 @@ const StorageRow = ({ connectionName, storageSize, storageSizeUnit, onValueChang
         <>
             <div className='expand-collapse-pf' id='expand-collapse-button'>
                 <div className='expand-collapse-pf-link-container'>
-                    <button className='btn btn-link' onClick={() => onValueChanged('expandedStorage', !expandedStorage)}>
+                    <button className='btn btn-link' type="button" onClick={() => onValueChanged('expandedStorage', !expandedStorage)}>
                         { expandedStorage ? <span className='fa fa-angle-down' /> : <span className='fa fa-angle-right' /> }
                         { expandedStorage ? _("Hide Storage Details") : _("Show Storage Details")}
                     </button>
@@ -543,6 +621,7 @@ class CreateVmModal extends React.Component {
             sourceType: props.mode == 'create' ? DOWNLOAD_AN_OS : EXISTING_DISK_IMAGE_SOURCE,
             expandedMemory: false,
             expandedStorage: false,
+            unattendedInstallation: false,
             source: '',
             os: undefined,
             memorySize: Math.min(convertToUnit(1024, units.MiB, units.GiB), // tied to Unit
@@ -559,6 +638,11 @@ class CreateVmModal extends React.Component {
         };
         this.onCreateClicked = this.onCreateClicked.bind(this);
         this.onValueChanged = this.onValueChanged.bind(this);
+    }
+
+    getUnattatendedInstallationSupport() {
+        const virtInstallVersionArr = this.props.virtInstallVersion.split('.');
+        return (Number(virtInstallVersionArr[0]) * 100 + Number(virtInstallVersionArr[1]) * 10 + Number(virtInstallVersionArr[2])) >= 220;
     }
 
     onValueChanged(key, value) {
@@ -668,6 +752,9 @@ class CreateVmModal extends React.Component {
             break;
         case 'os': {
             const stateDelta = { [key]: value };
+            if (value && value.profiles)
+                stateDelta.profile = value.profiles[0];
+
             if (value && value.recommendedResources.ram) {
                 stateDelta.recommendedMemory = convertToUnit(value.recommendedResources.ram, units.B, this.state.memorySizeUnit);
                 this.onValueChanged('memorySize', stateDelta.recommendedMemory);
@@ -680,9 +767,14 @@ class CreateVmModal extends React.Component {
             } else {
                 stateDelta.recommendedStorage = undefined;
             }
+            if (!value.unattendedInstallable)
+                this.onValueChanged('unattendedInstallation', false);
             this.setState(stateDelta);
             break;
         }
+        case 'unattendedInstallation':
+            this.setState({ unattendedInstallation: value, startVm: true });
+            break;
         default:
             this.setState({ [key]: value });
             break;
@@ -711,11 +803,15 @@ class CreateVmModal extends React.Component {
                 source: this.state.source,
                 sourceType: this.state.sourceType,
                 os: this.state.os ? this.state.os.shortId : 'auto',
+                profile: this.state.profile,
                 memorySize: convertToUnit(this.state.memorySize, this.state.memorySizeUnit, units.MiB),
                 storageSize: convertToUnit(this.state.storageSize, this.state.storageSizeUnit, units.GiB),
                 storagePool: this.state.storagePool,
                 storageVolume: this.state.storageVolume,
                 startVm: this.state.startVm,
+                unattended: this.state.unattendedInstallation,
+                userPassword: this.state.userPassword,
+                rootPassword: this.state.rootPassword,
             };
 
             return timeoutedPromise(
@@ -735,6 +831,22 @@ class CreateVmModal extends React.Component {
     render() {
         const { nodeMaxMemory, nodeDevices, networks, osInfoList, loggedUser, providerName, storagePools, vms } = this.props;
         const validationFailed = this.state.validate && validateParams({ ...this.state, osInfoList });
+        let startVmCheckbox = (
+            <label className="checkbox-inline">
+                <input id="start-vm" type="checkbox"
+                    checked={this.state.startVm}
+                    disabled={this.state.unattendedInstallation}
+                    onChange={e => this.onValueChanged('startVm', e.target.checked)} />
+                {_("Immediately Start VM")}
+            </label>
+        );
+        if (this.state.unattendedInstallation) {
+            startVmCheckbox = (
+                <OverlayTrigger overlay={ <Tooltip id='virt-install-not-available-tooltip'>{ _("Setting the user passwords for unattended installation requires starting the VM when creating it") }</Tooltip> } placement='top'>
+                    {startVmCheckbox}
+                </OverlayTrigger>
+            );
+        }
 
         const dialogBody = (
             <form className="ct-form">
@@ -778,14 +890,16 @@ class CreateVmModal extends React.Component {
                     <hr />
                 </>}
 
-                <label className="checkbox-inline">
-                    <input id="start-vm" type="checkbox"
-                        checked={this.state.startVm}
-                        onChange={e => this.onValueChanged('startVm', e.target.checked)} />
-                    {_("Immediately Start VM")}
-                </label>
+                {this.state.sourceType != PXE_SOURCE &&
+                 this.state.sourceType != EXISTING_DISK_IMAGE_SOURCE &&
+                 this.getUnattatendedInstallationSupport() &&
+                 <UnattendedRow
+                     validationFailed={validationFailed}
+                     unattendedInstallation={this.state.unattendedInstallation}
+                     os={this.state.os}
+                     onValueChanged={this.onValueChanged} />}
 
-                <hr />
+                {startVmCheckbox}
 
                 { this.state.sourceType != EXISTING_DISK_IMAGE_SOURCE &&
                 <StorageRow
@@ -850,8 +964,13 @@ export class CreateVmAction extends React.Component {
 
     componentDidMount() {
         cockpit.spawn(['which', 'virt-install'], { err: 'message' })
-                .then(() => this.setState({ virtInstallAvailable: true })
-                    , () => this.setState({ virtInstallAvailable: false }));
+                .then(() => {
+                    this.setState({ virtInstallAvailable: true });
+                    cockpit.spawn(['virt-install', '--version'], { err: 'message' })
+                            .then(version => {
+                                this.setState({ virtInstallVersion: version.trim() });
+                            });
+                }, () => this.setState({ virtInstallAvailable: false }));
     }
 
     // That will stop any state setting on unmounted/unmounting components
@@ -872,7 +991,7 @@ export class CreateVmAction extends React.Component {
             return null;
 
         let createButton = (
-            <Button disabled={!this.props.systemInfo.osInfoList || !this.state.virtInstallAvailable}
+            <Button disabled={!this.props.systemInfo.osInfoList || !this.state.virtInstallAvailable || !this.state.virtInstallVersion}
                     id={this.props.mode == 'create' ? 'create-new-vm' : 'import-vm-disk'}
                     bsStyle='default'
                     onClick={this.open}>
@@ -901,7 +1020,8 @@ export class CreateVmAction extends React.Component {
                     vms={this.props.vms}
                     osInfoList={this.props.systemInfo.osInfoList}
                     onAddErrorNotification={this.props.onAddErrorNotification}
-                    loggedUser={this.props.systemInfo.loggedUser} /> }
+                    loggedUser={this.props.systemInfo.loggedUser}
+                    virtInstallVersion={this.state.virtInstallVersion} /> }
             </>
         );
     }

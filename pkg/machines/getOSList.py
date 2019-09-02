@@ -60,6 +60,12 @@ for i in range(oses.get_length()):
     if installer_scripts.get_length() > 0:
         osObj['unattendedInstallable'] = True
 
+    osObj['profiles'] = []
+    osInstallScripts = os.get_install_script_list()
+    for j in range(osInstallScripts.get_length()):
+        script = osInstallScripts.get_nth(j)
+        osObj['profiles'].append(script.get_profile())
+
     res.append(osObj)
 
 print(json.dumps(res))
