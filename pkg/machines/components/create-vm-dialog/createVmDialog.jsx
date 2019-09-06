@@ -831,7 +831,8 @@ class CreateVmModal extends React.Component {
 
     render() {
         const { nodeMaxMemory, nodeDevices, networks, osInfoList, loggedUser, providerName, storagePools, vms } = this.props;
-        const validationFailed = this.state.validate && validateParams({ ...this.state, osInfoList });
+        const validationResult = validateParams({ ...this.state, osInfoList });
+        const validationFailed = this.state.validate && validationResult;
         let startVmCheckbox = (
             <label className="checkbox-inline">
                 <input id="start-vm" type="checkbox"
@@ -944,7 +945,7 @@ class CreateVmModal extends React.Component {
                         {_("Cancel")}
                     </Button>
                     <Button bsStyle='primary'
-                            disabled={Object.getOwnPropertyNames(validationFailed).length > 0}
+                            disabled={Object.getOwnPropertyNames(validationResult).length > 0}
                             onClick={this.onCreateClicked}>
                         {_("Create")}
                     </Button>
