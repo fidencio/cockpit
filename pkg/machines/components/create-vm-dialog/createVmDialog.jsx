@@ -119,9 +119,10 @@ function getSpaceAvailable(storagePools, connectionName) {
 function validateParams(vmParams) {
     const validationFailed = {};
 
-    if (isEmpty(vmParams.vmName.trim())) {
+    if (isEmpty(vmParams.vmName.trim()))
         validationFailed.vmName = _("Name should not be empty");
-    }
+    else if (/\s/.test(vmParams.vmName))
+        validationFailed.vmName = _("Name should not contain whitespaces");
 
     if (vmParams.os == undefined)
         validationFailed.os = _("You need to select the most closely matching Operating System");
