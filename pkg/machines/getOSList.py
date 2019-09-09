@@ -73,6 +73,28 @@ for i in range(oses.get_length()):
     osInstallScripts = os.get_install_script_list()
     osObj['profiles'].extend(_getInstallScriptProfile(osInstallScripts))
 
+    osObj['medias'] = {}
+    osMedias = os.get_media_list()
+    for j in range(osMedias.get_length()):
+        media = osMedias.get_nth(j)
+        mediaId = media.get_id()
+
+        osObj['medias'][mediaId] = {}
+        osObj['medias'][mediaId]['unattendedInstallable'] = False
+        osObj['medias'][mediaId]['profiles'] = []
+
+        if osObj['unattendedInstallable']:
+            supports = media.supports_installer_script()
+            osObj['medias'][mediaId]['unattendedInstallable'] = supports
+
+            mediaInstallScripts = media.get_install_script_list()
+            osObj['medias'][mediaId]['profiles'].extend(
+                     _getInstallScriptProfile(mediaInstallScripts))
+
+            if (osObj['medias'][mediaId]['unattendedInstallable'] and
+                not osObj['medias'][mediaId]['profiles']):
+                osObj['medias'][mediaId]['profiles'].extend(osObj['profiles'])
+
     res.append(osObj)
 
 print(json.dumps(res))
