@@ -7,6 +7,15 @@ import sys
 import json
 
 
+def _getInstallScriptProfile(installScriptList):
+    profiles = []
+    for i in range(installScriptList.get_length()):
+        script = installScriptList.get_nth(i)
+        profiles.append(script.get_profile())
+
+    return profiles
+
+
 loader = Libosinfo.Loader()
 loader.process_default_path()
 db = loader.get_db()
@@ -62,9 +71,7 @@ for i in range(oses.get_length()):
 
     osObj['profiles'] = []
     osInstallScripts = os.get_install_script_list()
-    for j in range(osInstallScripts.get_length()):
-        script = osInstallScripts.get_nth(j)
-        osObj['profiles'].append(script.get_profile())
+    osObj['profiles'].extend(_getInstallScriptProfile(osInstallScripts))
 
     res.append(osObj)
 
